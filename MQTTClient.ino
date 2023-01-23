@@ -17,6 +17,9 @@ const char *ntp2 = "pool.ntp.org";
 
 bool buttonStatus = false;
 bool deviceStatus = false;
+bool desiredDeviceStatus = false;
+
+StaticJsonDocument<500> jsonBuffer;
 
 void setup() {
   Serial.begin(9600);
@@ -39,6 +42,7 @@ void loop() {
 
   controlButton();
   mqttClient.loop();
+  controlDeviceStatus();
   if(deviceStatus) {
     deviceOn();
   } else {
@@ -46,12 +50,19 @@ void loop() {
   }  
 }
 
+void controlDeviceStatus() {
+  if (desiredDeviceStatus != deviceStatus) {
+    deviceStatus = desiredDeviceStatus;
+    publishMessage(deviceStatus);    
+  }
+}
+
 void controlButton() {
    if (isButtonPressed()) {
      Serial.println("Button Pressed"); 
     if(!buttonStatus) {
       Serial.println("Device status changed");
-      deviceStatus = !deviceStatus;
+      desiredDeviceStatus = !desiredDeviceStatus;
      }
      buttonStatus = true;
      return;
@@ -73,11 +84,11 @@ void ledOff() {
 }
 
 void deviceOn() {
-  digitalWrite(D1, LOW);
+  digitalWrite(D1, HIGH);
 }
 
 void deviceOff() {
-  digitalWrite(D1, HIGH);
+  digitalWrite(D1, LOW);
 }
 
 void connectMqtt()
@@ -134,8 +145,19 @@ void setTIme() {
   configTime(0, 1, ntp1, ntp2);
 }
 
+void publishMessage(bool state) {
+  StaticJsonDocument<200> doc;
+  doc["state"]["reported"]["status"] = (int) state;
+  char jsonBuffer[512];
+  serializeJson(doc, jsonBuffer); // print to client
+  mqttClient.publish("$aws/things/SmartLamp1/shadow/update", jsonBuffer);
+}
+
 void messageReceived(char *topic, byte *payload, unsigned int length)
 {
+  StaticJsonDocument<500> root;
+  deserializeJson(root, payload);
+
   Serial.print("Received [");
   Serial.print(topic);
   Serial.print("]: ");
@@ -143,5 +165,18 @@ void messageReceived(char *topic, byte *payload, unsigned int length)
   {
     Serial.print((char)payload[i]);
   }
+  Serial.print(" ------------- ");
+  Serial.print(root["state"]["status"].as<int>());
   Serial.println();
+
+  
+  if(root["state"]["status"].as<int>() == 1) {
+    desiredDeviceStatus = true;
+    return;
+  }
+  
+  if(root["state"]["status"].as<int>() == 0) {
+    desiredDeviceStatus = false;
+    return;
+  }  
 }
