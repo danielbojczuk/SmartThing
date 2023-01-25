@@ -1,1 +1,3 @@
 configuration.c
+dist/
+node_modules/
