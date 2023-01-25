@@ -148,6 +148,7 @@ void setTIme() {
 void publishMessage(bool state) {
   StaticJsonDocument<200> doc;
   doc["state"]["reported"]["status"] = (int) state;
+  doc["state"]["desired"]["status"] = (int) state;
   char jsonBuffer[512];
   serializeJson(doc, jsonBuffer); // print to client
   mqttClient.publish("$aws/things/SmartLamp1/shadow/update", jsonBuffer);
